@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:600px; margin:0 auto;">
+    <h2>Add Lesson for {{ course.title }}</h2>
+    <form method="post">
+        {% csrf_token %}
+        <h3 style="margin-top:1.5rem; font-size:1.2rem;">Lesson Details</h3>
+        {% for field in lesson_form %}
+            <div class="form-group">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+            </div>
+        {% endfor %}
+
+        <h3 style="margin-top:1.5rem; font-size:1.2rem;">Assignment Details (Optional)</h3>
+        {% for field in assignment_form %}
+            <div class="form-group">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+            </div>
+        {% endfor %}
+
+        <button type="submit" class="btn" style="width:100%; margin-top:1rem;">Save Lesson</button>
+    </form>
+</div>
+{% endblock %}

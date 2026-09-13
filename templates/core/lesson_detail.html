@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+            <h2 style="margin-bottom:0.5rem;"><a href="{% url 'course_detail' lesson.course.pk %}" style="color:var(--text-main);">{{ lesson.course.title }}</a> - {{ lesson.title }}</h2>
+            <p class="text-muted">Date: {{ lesson.date }}</p>
+        </div>
+    </div>
+</div>
+
+{% if is_teacher %}
+<div class="card">
+    <h3>QR Attendance Mode</h3>
+    <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap; margin-top:0.5rem;">
+        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+            <input type="radio" name="qr_mode" value="static" {% if lesson.qr_mode == 'static' %}checked{% endif %}>
+            Static
+        </label>
+        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+            <input type="radio" name="qr_mode" value="time_based" {% if lesson.qr_mode == 'time_based' %}checked{% endif %}>
+            Time-Based
+        </label>
+        <span id="interval-group" style="display:{% if lesson.qr_mode == 'time_based' %}inline{% else %}none{% endif %}; margin-left:0.5rem;">
+            Refresh every
+            <input type="number" id="refresh_interval" value="{{ lesson.refresh_interval|default:5 }}" min="1" max="120"
+                   style="width:60px; padding:4px 8px; border:1px solid var(--border); border-radius:4px;">
+            seconds
+        </span>
+        <button id="activate-btn" class="btn" style="background:var(--primary);">Activate</button>
+        <span id="mode-status" class="text-muted" style="margin-left:0.5rem;"></span>
+    </div>
+</div>
+{% endif %}
+
+<div class="grid">
+    <div class="card" style="text-align:center;">
+        <h3>Attendance QR Code</h3>
+        <p class="text-muted" style="margin-bottom:0.5rem;" id="qr-instructions">
+            {% if lesson.qr_mode == 'time_based' %}
+                Code refreshes every {{ lesson.refresh_interval|default:5 }}s.
+            {% else %}
+                Scan this code to mark attendance.
+            {% endif %}
+        </p>
+
+        {% if lesson.qr_mode == 'time_based' %}
+            <div id="countdown-display" style="font-size:1.5rem; font-weight:700; color:var(--primary); margin-bottom:0.5rem;">
+                Next refresh in <span id="refresh-countdown">{{ lesson.refresh_interval|default:5 }}</span>s
+            </div>
+        {% endif %}
+
+        <img id="qr-image" src="{% url 'generate_qr' lesson.qr_uuid %}" alt="QR Code" style="max-width:100%; height:auto; border:1px solid var(--border); border-radius:8px; padding:10px; background:white;">
+
+        <p style="margin-top:1rem;">
+            <a id="simulate-scan" href="{{ simulate_scan_url }}" class="btn" style="background:#10b981;">Simulate Scan</a>
+        </p>
+
+        {% if user_attended %}
+            <div style="margin-top:1rem; padding:1rem; background-color:#d1fae5; color:#065f46; border-radius:6px;">
+                You attended this lesson!
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Lesson Artifacts</h3>
+
+        <div style="margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid var(--border);">
+            <h4>Assignment</h4>
+            {% if assignment %}
+                <p><strong>Title:</strong> {{ assignment.title }}</p>
+                <p><strong>Due:</strong> {{ assignment.due_date|default:"No due date" }}</p>
+                <a href="{% url 'assignment_detail' assignment.pk %}" class="btn" style="margin-top:0.5rem;">View Assignment</a>
+            {% else %}
+                <p class="text-muted">No assignment for this lesson.</p>
+            {% endif %}
+        </div>
+
+        {% if is_teacher %}
+        <div style="margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid var(--border); text-align:center;">
+            <h4>Live Attendances</h4>
+            <div id="attendance-counter" style="font-size:3rem; font-weight:700; color:var(--primary); margin:1rem 0;">
+                {{ attendances.count }}
+            </div>
+            <p class="text-muted" style="margin-bottom:1rem;">Students scanned</p>
+            <button id="view-attendance-btn" class="btn" style="background:#6366f1;">View Attendance</button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Attendance modal -->
+<div id="attendance-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:var(--card-bg, #fff); border-radius:12px; padding:2rem; max-width:500px; width:90%; max-height:70vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <h3 style="margin:0;">Attendance List</h3>
+            <button id="close-modal" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div id="attendance-list-body" style="text-align:left;"></div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const lessonId = {{ lesson.pk }};
+    const qrUuid = '{{ lesson.qr_uuid }}';
+    const currentMode = '{{ lesson.qr_mode }}';
+    const refreshInterval = {{ lesson.refresh_interval|default:5 }};
+    const isTeacher = {{ is_teacher|yesno:"true,false" }};
+
+    // -- CSRF helper --
+    function getCSRF() {
+        var c = document.cookie.split(';');
+        for (var i = 0; i < c.length; i++) {
+            var kv = c[i].trim();
+            if (kv.startsWith('csrftoken=')) return kv.substring('csrftoken='.length);
+        }
+        return '';
+    }
+
+    // -- Attendance counter polling --
+    {% if is_teacher %}
+    setInterval(function() {
+        fetch("/api/lesson/" + lessonId + "/count/")
+        .then(r => r.json())
+        .then(d => {
+            var el = document.getElementById('attendance-counter');
+            if (el) el.innerText = d.count;
+        })
+        .catch(e => console.error('Count error:', e));
+    }, 2000);
+    {% endif %}
+
+    // -- Mode activation --
+    var activateBtn = document.getElementById('activate-btn');
+    var modeRadios = document.querySelectorAll('input[name="qr_mode"]');
+    var intervalInput = document.getElementById('refresh_interval');
+    var intervalGroup = document.getElementById('interval-group');
+    var modeStatus = document.getElementById('mode-status');
+
+    if (modeRadios) {
+        modeRadios.forEach(function(r) {
+            r.addEventListener('change', function() {
+                intervalGroup.style.display = this.value === 'time_based' ? 'inline' : 'none';
+            });
+        });
+    }
+
+    if (activateBtn) {
+        activateBtn.addEventListener('click', function() {
+            var mode = document.querySelector('input[name="qr_mode"]:checked').value;
+            var interval = parseInt(intervalInput.value) || 5;
+            modeStatus.innerText = 'Saving...';
+            fetch("/api/lesson/" + lessonId + "/set-mode/", {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCSRF()},
+                body: JSON.stringify({mode: mode, refresh_interval: interval})
+            })
+            .then(r => r.json())
+            .then(function(d) {
+                if (d.success) {
+                    modeStatus.innerText = 'Activated! Reloading...';
+                    setTimeout(function() { location.reload(); }, 800);
+                } else {
+                    modeStatus.innerText = 'Error: ' + (d.error || 'unknown');
+                }
+            })
+            .catch(function(e) {
+                modeStatus.innerText = 'Request failed';
+                console.error(e);
+            });
+        });
+    }
+
+    // -- Time-based QR refresh with countdown --
+    if (currentMode === 'time_based') {
+        var countdown = refreshInterval;
+        var cdEl = document.getElementById('refresh-countdown');
+
+        setInterval(function() {
+            countdown--;
+            if (cdEl) cdEl.innerText = countdown;
+            if (countdown <= 0) {
+                var img = document.getElementById('qr-image');
+                if (img) img.src = "/qr/" + qrUuid + "/?t=" + Date.now();
+                countdown = refreshInterval;
+                if (cdEl) cdEl.innerText = countdown;
+            }
+        }, 1000);
+    }
+
+    // -- View Attendance modal --
+    var viewBtn = document.getElementById('view-attendance-btn');
+    var modal = document.getElementById('attendance-modal');
+    var closeBtn = document.getElementById('close-modal');
+
+    function formatTime(iso) {
+        if (!iso) return '-';
+        var d = new Date(iso);
+        return d.toLocaleString();
+    }
+
+    if (viewBtn && modal) {
+        viewBtn.addEventListener('click', function() {
+            fetch("/api/lesson/" + lessonId + "/attendance-list/")
+            .then(r => r.json())
+            .then(function(d) {
+                var body = document.getElementById('attendance-list-body');
+                if (!d.attendances || d.attendances.length === 0) {
+                    body.innerHTML = '<p class="text-muted">No attendances yet.</p>';
+                } else {
+                    var html = '<table style="width:100%; border-collapse:collapse;">';
+                    html += '<tr style="border-bottom:1px solid var(--border);"><th style="text-align:left; padding:8px 4px;">Student</th><th style="text-align:left; padding:8px 4px;">Time</th></tr>';
+                    d.attendances.forEach(function(a) {
+                        html += '<tr style="border-bottom:1px solid var(--border);">';
+                        html += '<td style="padding:8px 4px;">' + a.username + '</td>';
+                        html += '<td style="padding:8px 4px;">' + formatTime(a.timestamp) + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</table>';
+                    body.innerHTML = html;
+                }
+                modal.style.display = 'flex';
+            })
+            .catch(function(e) {
+                console.error('Attendance list error:', e);
+            });
+        });
+
+        closeBtn.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    }
+})();
+</script>
+{% endblock %}

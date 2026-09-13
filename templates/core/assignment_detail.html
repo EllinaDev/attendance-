@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+            <h2 style="margin-bottom:0.5rem;">{{ assignment.title }}</h2>
+            <p class="text-muted" style="margin-bottom:1rem;">
+                Lesson: <a href="{% url 'lesson_detail' assignment.lesson.pk %}">{{ assignment.lesson.title }}</a>
+            </p>
+            <p>{{ assignment.description }}</p>
+            <p style="margin-top:1rem;"><strong>Due Date:</strong> {{ assignment.due_date|default:"No due date" }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="max-width:800px; margin:0 auto;">
+    {% if submission %}
+        <h3>Your Submission</h3>
+        <div style="padding:1rem; border:1px solid #10b981; background-color:#d1fae5; border-radius:6px; margin-bottom:1rem;">
+            <p><strong>Submitted at:</strong> {{ submission.submitted_at }}</p>
+            <p style="white-space: pre-wrap; margin-top:1rem;">{{ submission.content }}</p>
+        </div>
+        <h4>Update Submission</h4>
+    {% else %}
+        <h3>Submit Assignment</h3>
+    {% endif %}
+
+    <form method="post" style="margin-top:1.5rem;">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-group">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+            </div>
+            {% for error in field.errors %}
+                <div style="color:red; font-size:0.9rem; margin-bottom:0.5rem;">{{ error }}</div>
+            {% endfor %}
+        {% endfor %}
+        <button type="submit" class="btn" style="margin-top:1rem;">Submit Assignment</button>
+    </form>
+</div>
+{% endblock %}

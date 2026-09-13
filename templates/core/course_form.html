@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:600px; margin:0 auto;">
+    <h2>Create Course</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-group">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                <small class="text-muted">{{ field.help_text }}</small>
+                {% endif %}
+            </div>
+            {% for error in field.errors %}
+                <div style="color:red; font-size:0.9rem; margin-bottom:0.5rem;">{{ error }}</div>
+            {% endfor %}
+        {% endfor %}
+        {% if request.user.is_superuser and teachers %}
+        <div class="form-group">
+            <label for="teacher">Teacher</label>
+            <select name="teacher" id="teacher">
+                {% for t in teachers %}
+                <option value="{{ t.pk }}" {% if t == request.user %}selected{% endif %}>{{ t.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn" style="width:100%; margin-top:1rem;">Save Course</button>
+    </form>
+</div>
+{% endblock %}

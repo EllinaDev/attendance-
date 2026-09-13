@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+            <h2>{{ course.title }}</h2>
+            <p class="text-muted" style="margin-bottom:1rem;">Instructor: {{ course.teacher.username }}</p>
+            <p>{{ course.description }}</p>
+        </div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            {% if user == course.teacher or user.is_superuser %}
+            <a href="{% url 'lesson_create' course.pk %}" class="btn">+ Add Lesson</a>
+            {% if user.is_superuser %}
+            <a href="{% url 'course_delete' course.pk %}" class="btn" style="background:#ef4444;" onclick="return confirm('Delete this course?');">Delete Course</a>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Lessons</h3>
+    {% if lessons %}
+        <ul class="list-group">
+            {% for lesson in lessons %}
+            <li class="list-group-item">
+                <a href="{% url 'lesson_detail' lesson.pk %}">{{ lesson.title }}</a>
+                <small class="text-muted">{{ lesson.date }}</small>
+            </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="text-muted">No lessons have been created yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

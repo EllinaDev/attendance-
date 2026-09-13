@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:400px; margin:2rem auto;">
+    <h2>Sign Up</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-group">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                <small class="text-muted">{{ field.help_text }}</small>
+                {% endif %}
+            </div>
+            {% for error in field.errors %}
+                <div style="color:red; font-size:0.9rem; margin-bottom:0.5rem;">{{ error }}</div>
+            {% endfor %}
+        {% endfor %}
+        <div class="form-group">
+            <label>I am a</label>
+            <div style="display:flex; gap:1.5rem; margin-top:0.25rem;">
+                <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                    <input type="radio" name="role" value="student" checked style="margin:0; width:auto; padding:0; border:none;"> Student
+                </label>
+                <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                    <input type="radio" name="role" value="teacher" style="margin:0; width:auto; padding:0; border:none;"> Teacher
+                </label>
+            </div>
+        </div>
+        <button type="submit" class="btn" style="width:100%; margin-top:1rem;">Sign Up</button>
+    </form>
+</div>
+{% endblock %}

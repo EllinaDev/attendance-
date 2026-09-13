@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>QRAssist</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="QRAssist">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="{% url 'home' %}" class="navbar-brand">QRAssist</a>
+        <div class="nav-links">
+            {% if user.is_authenticated %}
+                {% if user.is_superuser or request.session.role == 'teacher' %}
+                    <a href="{% url 'dashboard' %}">Teaching</a>
+                    <a href="{% url 'course_list' %}">Courses</a>
+                {% endif %}
+                {% if user.is_superuser or request.session.role == 'student' %}
+                    <a href="{% url 'student_dashboard' %}">My Learning</a>
+                {% endif %}
+                {% if user.is_superuser %}<span style="color:#f59e0b; font-weight:600; font-size:0.8rem;">ADMIN</span>{% endif %}
+                <span>Hello, {{ user.username }}</span>
+                <form method="post" action="{% url 'logout' %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn" style="padding:0.3rem 0.6rem; font-size:0.9rem;">Logout</button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}">Login</a>
+                <a href="{% url 'signup' %}" class="btn">Sign up</a>
+            {% endif %}
+        </div>
+    </nav>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+</body>
+</html>
